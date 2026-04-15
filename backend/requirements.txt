@@ -1,0 +1,16 @@
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+transformers==4.37.0
+torch==2.1.2
+pydantic==2.5.3
+python-multipart==0.0.6
+accelerate>=0.25.0
+optimum>=1.16.0
+bitsandbytes>=0.41.0
+numpy<2.0
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
