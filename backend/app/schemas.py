@@ -19,6 +19,31 @@ class NERRequest(BaseModel):
             }
         }
 
+class BatchPredictRequest(BaseModel):
+    texts: List[str] = Field(
+        ..., 
+        description="待识别的文本列表（最多100条，单条最长2048字符）", 
+        min_length=1,
+        max_length=100
+    )
+    threshold: Optional[float] = Field(
+        None, 
+        ge=0, 
+        le=1, 
+        description="置信度阈值，过滤低于该值的实体（0-1之间，可选）"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "texts": [
+                    "CRISPR-Cas9 is a powerful gene editing tool developed at UC Berkeley.",
+                    "The COVID-19 vaccine was developed by Pfizer and BioNTech."
+                ],
+                "threshold": 0.5
+            }
+        }
+
 class Entity(BaseModel):
     entity: str = Field(..., description="实体类型")
     word: str = Field(..., description="实体文本")

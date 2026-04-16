@@ -136,8 +136,13 @@ class NERModel:
         
         return {0: "O"}
     
-    def predict(self, texts: List[str]) -> List[List[Dict[str, Any]]]:
-        """批量预测NER"""
+    def predict(self, texts: List[str], threshold: Optional[float] = None) -> List[List[Dict[str, Any]]]:
+        """批量预测NER
+        
+        Args:
+            texts: 待识别的文本列表
+            threshold: 可选的置信度阈值，过滤掉低于该值的实体
+        """
         if not self.model:
             logger.error("Prediction failed: model not loaded")
             raise RuntimeError("Model not loaded")
@@ -186,20 +191,29 @@ class NERModel:
                 
                 results.extend(batch_results)
         
-        return self._format_results(results)
+        return self._format_results(results, threshold)
     
-    def _format_results(self, results: List) -> List[List[Dict[str, Any]]]:
-        """格式化输出结果"""
+    def _format_results(self, results: List, threshold: Optional[float] = None) -> List[List[Dict[str, Any]]]:
+        """格式化输出结果
+        
+        Args:
+            results: 原始预测结果
+            threshold: 可选的置信度阈值，过滤掉低于该值的实体
+        """
         formatted = []
         for doc_entities in results:
             entities = []
             if doc_entities:
                 for ent in doc_entities:
                     if isinstance(ent, dict):
+                        score = round(float(ent.get("score", 0)), 4)
+                        # 如果设置了阈值且分数低于阈值，跳过该实体
+                        if threshold is not None and score < threshold:
+                            continue
                         entities.append({
                             "entity": ent.get("entity_group", ent.get("entity", "UNKNOWN")),
                             "word": ent.get("word", ""),
-                            "score": round(float(ent.get("score", 0)), 4),
+                            "score": score,
                             "start": ent.get("start", 0),
                             "end": ent.get("end", 0)
                         })
