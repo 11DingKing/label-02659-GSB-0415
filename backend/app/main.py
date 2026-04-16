@@ -79,10 +79,16 @@ async def predict_ner(request: NERRequest):
     """
     命名实体识别接口
     
+    - **text**: 待识别的单条文本
     - **texts**: 待识别的文本列表（最多100条）
     """
-    text_count = len(request.texts)
-    total_chars = sum(len(t) for t in request.texts)
+    if request.text is not None:
+        texts = [request.text]
+    else:
+        texts = request.texts
+    
+    text_count = len(texts)
+    total_chars = sum(len(t) for t in texts)
     logger.info(f"NER request: {text_count} texts, {total_chars} total chars")
     
     # 输入校验：限制批量请求数量
@@ -111,7 +117,7 @@ async def predict_ner(request: NERRequest):
     
     try:
         start_time = time.time()
-        results = ner_model.predict(request.texts)
+        results = ner_model.predict(texts)
         duration = (time.time() - start_time) * 1000
         
         entity_count = sum(len(entities) for entities in results)
