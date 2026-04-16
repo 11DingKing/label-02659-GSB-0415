@@ -1,12 +1,35 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Any
 
 class NERRequest(BaseModel):
+    text: Optional[str] = Field(None, description="待识别的单条文本（最长2048字符）")
+    texts: Optional[List[str]] = Field(
+        None, 
+        description="待识别的文本列表（最多100条，单条最长2048字符）", 
+        min_length=1,
+        max_length=100
+    )
+    
+    @model_validator(mode='after')
+    def check_text_or_texts(self):
+        if self.text is None and self.texts is None:
+            raise ValueError("必须提供 text 或 texts 字段")
+        if self.text is not None and self.texts is not None:
+            raise ValueError("不能同时提供 text 和 texts 字段")
+        return self
+
+class BatchPredictRequest(BaseModel):
     texts: List[str] = Field(
         ..., 
         description="待识别的文本列表（最多100条，单条最长2048字符）", 
         min_length=1,
         max_length=100
+    )
+    threshold: Optional[float] = Field(
+        None, 
+        description="置信度阈值（0-1之间），过滤掉低于该分数的实体",
+        ge=0.0,
+        le=1.0
     )
     
     class Config:

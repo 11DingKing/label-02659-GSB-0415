@@ -1,11 +1,12 @@
 import logging
 import time
 import uuid
+from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from .schemas import NERRequest, NERResponse, HealthResponse, ErrorResponse
+from .schemas import NERRequest, NERResponse, HealthResponse, ErrorResponse, BatchPredictRequest
 from .model import ner_model
 from .config import HOST, PORT, BATCH_SIZE
 
@@ -78,10 +79,16 @@ async def predict_ner(request: NERRequest):
     """
     命名实体识别接口
     
+    - **text**: 待识别的单条文本
     - **texts**: 待识别的文本列表（最多100条）
     """
-    text_count = len(request.texts)
-    total_chars = sum(len(t) for t in request.texts)
+    if request.text is not None:
+        texts = [request.text]
+    else:
+        texts = request.texts
+    
+    text_count = len(texts)
+    total_chars = sum(len(t) for t in texts)
     logger.info(f"NER request: {text_count} texts, {total_chars} total chars")
     
     # 输入校验：限制批量请求数量
@@ -110,7 +117,7 @@ async def predict_ner(request: NERRequest):
     
     try:
         start_time = time.time()
-        results = ner_model.predict(request.texts)
+        results = ner_model.predict(texts)
         duration = (time.time() - start_time) * 1000
         
         entity_count = sum(len(entities) for entities in results)
@@ -120,6 +127,86 @@ async def predict_ner(request: NERRequest):
             success=True,
             data=results,
             message=f"成功处理 {text_count} 条文本，识别出 {entity_count} 个实体"
+        )
+    except RuntimeError as e:
+        logger.error(f"Model runtime error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "error": "Model error",
+                "message": "模型处理出错，请检查输入或稍后重试"
+            }
+        )
+    except ValueError as e:
+        logger.error(f"Invalid input: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Invalid input",
+                "message": f"输入数据格式错误: {str(e)}"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during prediction: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "error": "Internal server error",
+                "message": "服务器内部错误，请联系管理员"
+            }
+        )
+
+@app.post("/api/batch_predict", response_model=NERResponse, tags=["NER"])
+async def batch_predict(request: BatchPredictRequest):
+    """
+    批量命名实体识别接口
+    
+    - **texts**: 待识别的文本列表（最多100条）
+    - **threshold**: 可选的置信度阈值（0-1之间），过滤掉低置信度的实体
+    """
+    texts = request.texts
+    threshold = request.threshold
+    text_count = len(texts)
+    total_chars = sum(len(t) for t in texts)
+    logger.info(f"Batch predict request: {text_count} texts, {total_chars} total chars")
+    
+    # 输入校验：限制批量请求数量
+    if text_count > MAX_TEXTS_PER_REQUEST:
+        logger.warning(f"Request rejected: {text_count} texts exceeds limit of {MAX_TEXTS_PER_REQUEST}")
+        raise HTTPException(
+            status_code=400, 
+            detail={
+                "error": "Too many texts",
+                "message": f"请求包含 {text_count} 条文本，超过最大限制 {MAX_TEXTS_PER_REQUEST} 条",
+                "max_allowed": MAX_TEXTS_PER_REQUEST,
+                "received": text_count
+            }
+        )
+    
+    # 检查模型是否可用
+    if ner_model.model is None:
+        logger.error("Batch predict request failed: model not loaded")
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "error": "Service unavailable",
+                "message": "模型尚未加载完成，请稍后重试"
+            }
+        )
+    
+    try:
+        start_time = time.time()
+        results = ner_model.predict(texts, threshold=threshold)
+        duration = (time.time() - start_time) * 1000
+        
+        entity_count = sum(len(entities) for entities in results)
+        logger.info(f"Batch predict completed: {entity_count} entities found in {duration:.2f}ms")
+        
+        threshold_msg = f" (threshold={threshold})" if threshold is not None else ""
+        return NERResponse(
+            success=True,
+            data=results,
+            message=f"成功处理 {text_count} 条文本{threshold_msg}，识别出 {entity_count} 个实体"
         )
     except RuntimeError as e:
         logger.error(f"Model runtime error: {e}", exc_info=True)
