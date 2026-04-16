@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 from typing import List, Optional, Any
 
 class NERRequest(BaseModel):
@@ -18,6 +18,25 @@ class NERRequest(BaseModel):
                 ]
             }
         }
+
+
+class BatchNERRequest(RootModel[List[str]]):
+    root: List[str] = Field(
+        ..., 
+        description="待识别的文本数组（最多100条，单条最长2048字符）",
+        min_length=1,
+        max_length=100
+    )
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": [
+                "CRISPR-Cas9 is a powerful gene editing tool developed at UC Berkeley.",
+                "The COVID-19 vaccine was developed by Pfizer and BioNTech.",
+                "Alzheimer's disease is a neurodegenerative disorder that affects memory."
+            ]
+        }
+    }
 
 class Entity(BaseModel):
     entity: str = Field(..., description="实体类型")

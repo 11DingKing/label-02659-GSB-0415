@@ -136,8 +136,12 @@ class NERModel:
         
         return {0: "O"}
     
-    def predict(self, texts: List[str]) -> List[List[Dict[str, Any]]]:
-        """批量预测NER"""
+    def predict(self, texts: List[str], threshold: float = 0.0) -> List[List[Dict[str, Any]]]:
+        """批量预测NER
+        Args:
+            texts: 待识别的文本列表
+            threshold: 置信度阈值，低于该值的实体将被过滤
+        """
         if not self.model:
             logger.error("Prediction failed: model not loaded")
             raise RuntimeError("Model not loaded")
@@ -146,7 +150,7 @@ class NERModel:
             logger.debug("Empty input, returning empty result")
             return []
         
-        logger.debug(f"Processing {len(texts)} texts")
+        logger.debug(f"Processing {len(texts)} texts, threshold={threshold}")
         
         # 输入校验：截断过长文本
         processed_texts = []
@@ -186,24 +190,36 @@ class NERModel:
                 
                 results.extend(batch_results)
         
-        return self._format_results(results)
+        return self._format_results(results, threshold)
     
-    def _format_results(self, results: List) -> List[List[Dict[str, Any]]]:
-        """格式化输出结果"""
+    def _format_results(self, results: List, threshold: float = 0.0) -> List[List[Dict[str, Any]]]:
+        """格式化输出结果
+        Args:
+            results: 模型返回的原始结果
+            threshold: 置信度阈值，低于该值的实体将被过滤
+        """
         formatted = []
+        filtered_count = 0
         for doc_entities in results:
             entities = []
             if doc_entities:
                 for ent in doc_entities:
                     if isinstance(ent, dict):
-                        entities.append({
-                            "entity": ent.get("entity_group", ent.get("entity", "UNKNOWN")),
-                            "word": ent.get("word", ""),
-                            "score": round(float(ent.get("score", 0)), 4),
-                            "start": ent.get("start", 0),
-                            "end": ent.get("end", 0)
-                        })
+                        score = round(float(ent.get("score", 0)), 4)
+                        if score >= threshold:
+                            entities.append({
+                                "entity": ent.get("entity_group", ent.get("entity", "UNKNOWN")),
+                                "word": ent.get("word", ""),
+                                "score": score,
+                                "start": ent.get("start", 0),
+                                "end": ent.get("end", 0)
+                            })
+                        else:
+                            filtered_count += 1
             formatted.append(entities)
+        
+        if filtered_count > 0:
+            logger.debug(f"Filtered out {filtered_count} entities with score < {threshold}")
         return formatted
 
 
