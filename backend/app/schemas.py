@@ -8,6 +8,20 @@ class NERRequest(BaseModel):
         min_length=1,
         max_length=100
     )
+
+class BatchPredictRequest(BaseModel):
+    texts: List[str] = Field(
+        ..., 
+        description="待识别的文本列表（最多100条，单条最长2048字符）", 
+        min_length=1,
+        max_length=100
+    )
+    threshold: Optional[float] = Field(
+        None, 
+        description="置信度阈值（0-1之间），过滤掉低于该分数的实体",
+        ge=0.0,
+        le=1.0
+    )
     
     class Config:
         json_schema_extra = {

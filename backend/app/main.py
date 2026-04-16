@@ -2,11 +2,11 @@ import logging
 import time
 import uuid
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Request, Query, Body
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from .schemas import NERRequest, NERResponse, HealthResponse, ErrorResponse
+from .schemas import NERRequest, NERResponse, HealthResponse, ErrorResponse, BatchPredictRequest
 from .model import ner_model
 from .config import HOST, PORT, BATCH_SIZE
 
@@ -151,16 +151,15 @@ async def predict_ner(request: NERRequest):
         )
 
 @app.post("/api/batch_predict", response_model=NERResponse, tags=["NER"])
-async def batch_predict(
-    texts: List[str] = Body(..., description="待识别的文本列表（JSON数组，最多100条）"),
-    threshold: Optional[float] = Query(None, ge=0.0, le=1.0, description="置信度阈值，过滤掉低于该分数的实体")
-):
+async def batch_predict(request: BatchPredictRequest):
     """
     批量命名实体识别接口
     
-    - **texts**: 待识别的文本列表（JSON数组，最多100条）
+    - **texts**: 待识别的文本列表（最多100条）
     - **threshold**: 可选的置信度阈值（0-1之间），过滤掉低置信度的实体
     """
+    texts = request.texts
+    threshold = request.threshold
     text_count = len(texts)
     total_chars = sum(len(t) for t in texts)
     logger.info(f"Batch predict request: {text_count} texts, {total_chars} total chars")
