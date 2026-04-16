@@ -74,16 +74,15 @@ async def health_check():
     )
 
 @app.post("/ner", response_model=NERResponse, tags=["NER"])
-async def predict_ner(request: NERRequest, threshold: float = 0.0):
+async def predict_ner(request: NERRequest):
     """
     命名实体识别接口
     
     - **texts**: 待识别的文本列表（最多100条）
-    - **threshold**: 可选，置信度阈值，低于该值的实体将被过滤，默认 0.0
     """
     text_count = len(request.texts)
     total_chars = sum(len(t) for t in request.texts)
-    logger.info(f"NER request: {text_count} texts, {total_chars} total chars, threshold={threshold}")
+    logger.info(f"NER request: {text_count} texts, {total_chars} total chars")
     
     # 输入校验：限制批量请求数量
     if text_count > MAX_TEXTS_PER_REQUEST:
@@ -111,7 +110,7 @@ async def predict_ner(request: NERRequest, threshold: float = 0.0):
     
     try:
         start_time = time.time()
-        results = ner_model.predict(request.texts, threshold)
+        results = ner_model.predict(request.texts)
         duration = (time.time() - start_time) * 1000
         
         entity_count = sum(len(entities) for entities in results)
@@ -152,14 +151,15 @@ async def predict_ner(request: NERRequest, threshold: float = 0.0):
 
 
 @app.post("/api/batch_predict", response_model=NERResponse, tags=["NER"])
-async def batch_predict(request: BatchNERRequest, threshold: float = 0.0):
+async def batch_predict(request: BatchNERRequest):
     """
     批量命名实体识别接口
     
-    - **请求体**: JSON 数组，包含待识别的文本（最多100条）
+    - **texts**: 待识别的文本列表（最多100条）
     - **threshold**: 可选，置信度阈值，低于该值的实体将被过滤，默认 0.0
     """
-    texts = request.root
+    texts = request.texts
+    threshold = request.threshold
     text_count = len(texts)
     total_chars = sum(len(t) for t in texts)
     logger.info(f"Batch predict request: {text_count} texts, {total_chars} total chars, threshold={threshold}")
